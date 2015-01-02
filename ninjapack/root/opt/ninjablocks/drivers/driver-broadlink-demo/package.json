@@ -1,0 +1,10 @@
+{
+  "id": "com.ninjablocks.broadlink.demo",
+  "name": "Broadlink Demo Driver",
+  "version": "0.1.0",
+  "description": "",
+  "main": "driver-broadlink-demo",
+  "author": "Elliot Shepherd <elliot@ninjablocks.com>",
+  "license": "MIT",
+  "maxMemory": 20
+}

@@ -1,0 +1,2 @@
+/opt/ninjablocks/bin/nservice -q driver-kodi stop || true
+/opt/ninjablocks/bin/nservice -q driver-kodi start || true
