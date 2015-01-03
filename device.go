@@ -1,11 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os/exec"
-	"strings"
+	"regexp"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/ninjasphere/go-ninja/api"
 	"github.com/ninjasphere/go-ninja/devices"
 	"github.com/ninjasphere/go-ninja/model"
@@ -49,7 +51,7 @@ func NewDevice(driver ninja.Driver, conn *ninja.Connection, id string) (*Device,
 			err = device.applyOnOff(toggle)
 
 			if err != nil {
-				log.Warningf("Failed to set on/off: %s", err)
+				switchDevice.Log().Warningf("Failed to set on/off: %s", err)
 			}
 			time.Sleep(time.Second * 2)
 		}
@@ -60,20 +62,53 @@ func NewDevice(driver ninja.Driver, conn *ninja.Connection, id string) (*Device,
 
 func (d *Device) applyOnOff(state bool) error {
 
+	d.device.Log().Infof("applyonoff %t", state)
+
 	s := "0"
 	if state {
 		s = "1"
 	}
 
-	cmd := exec.Command("./demo-client", d.id, "48", s)
+	var rsp CmdResponse
+	err := cmd(&rsp, "84", d.id, s)
 
-	output, err := cmd.Output()
-	log.Infof("Output from script: %s err:", output, err)
-
-	if !strings.Contains(strings.ToLower(string(output)), "success") {
-		return fmt.Errorf("Failed: %s", output)
+	if rsp.Msg == "FAILURE" {
+		return fmt.Errorf("Failed to actuate device: %v", rsp)
 	}
 
-	return err
+	spew.Dump(rsp)
 
+	return err
+}
+
+type CmdResponse struct {
+	Code   int    `json:"code"`
+	Msg    string `json:"msg"`
+	RetVal string `json:"retval"`
+}
+
+var responseRegex = regexp.MustCompile(`get response: (.*) len`)
+
+func cmd(response interface{}, params ...string) error {
+
+	log.Infof("Running command with %v", params)
+
+	cmd := exec.Command("./demo-client", params...)
+
+	output, err := cmd.Output()
+	//log.Infof("Output from script: %s err:", output, err)
+
+	if err != nil {
+		return err
+	}
+
+	chunks := responseRegex.FindAllStringSubmatch(string(output), -1)
+
+	if len(chunks) < 1 || len(chunks[0]) < 2 {
+		return fmt.Errorf("Couldn't parse response: %s", output)
+	}
+
+	log.Debugf("Response: %s", chunks[0][1])
+
+	return json.Unmarshal([]byte(chunks[0][1]), response)
 }

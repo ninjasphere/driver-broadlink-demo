@@ -58,7 +58,7 @@ func (d *Driver) Start(_ interface{}) error {
 				log.Warningf("Failed to list devices: %s", err)
 			}
 
-			//output = []byte("hello 01:23:45:67:89:ab \n aa:23:45:67:89:ab ,sdhshd sdjhbsd \n ff:23:45:67:89:ab ")
+			//output := []byte("hello 01:23:45:67:89:ab \n aa:23:45:67:89:ab ,sdhshd sdjhbsd \n ff:23:45:67:89:ab ")
 
 			for _, mac := range macRegex.FindAllString(string(output), -1) {
 				log.Infof("Found mac: %s", mac)
