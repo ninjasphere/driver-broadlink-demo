@@ -37,6 +37,22 @@ func NewDriver() (*Driver, error) {
 
 var macRegex = regexp.MustCompile(`([a-fA-F0-9]{2}(?:|:)){6}`)
 
+type DeviceListResponse struct {
+	CmdResponse
+	List []FoundDevice `json:"list"`
+}
+
+type FoundDevice struct {
+	Name    string `json:"name"`
+	Mac     string `json:"mac"`
+	Netstat int    `json:"netstat"`
+	New     int    `json:"new"`
+	Lock    int    `json:"lock"`
+	Type    int    `json:"type"`
+}
+
+//list":[{"name":"spmini","mac":"b4:43:0d:11:c2:04","netstat":1,"new":0,"lock":0,"type":10024},{"name":"MS1","mac":"cc:d2:9b:f5:60:54","netstat":1,"new":0,"lock":0,"type":10015}]
+
 func (d *Driver) Start(_ interface{}) error {
 	log.Infof("Driver Starting")
 
@@ -51,25 +67,25 @@ func (d *Driver) Start(_ interface{}) error {
 
 			log.Debugf("Finding devices")
 
-			cmd := exec.Command("./demo-client", "list-or-whatever")
+			var response DeviceListResponse
 
-			output, err := cmd.Output()
+			err := cmd(&response, "12") // List devices
+
 			if err != nil {
 				log.Warningf("Failed to list devices: %s", err)
 			}
 
-			//output := []byte("hello 01:23:45:67:89:ab \n aa:23:45:67:89:ab ,sdhshd sdjhbsd \n ff:23:45:67:89:ab ")
+			log.Debugf("Found %d devices", len(response.List))
 
-			for _, mac := range macRegex.FindAllString(string(output), -1) {
-				log.Infof("Found mac: %s", mac)
+			for _, found := range response.List {
 
-				if _, ok := devices[mac]; !ok {
-					log.Infof("New mac: %s", mac)
-					x, err := NewDevice(d, d.Conn, mac)
+				if _, ok := devices[found.Mac]; !ok {
+					log.Infof("New name: %s mac: %s", found.Name, found.Mac)
+					x, err := NewDevice(d, d.Conn, found.Name, found.Mac)
 					if err != nil {
 						log.Infof("Failed to create device: %s", err)
 					} else {
-						devices[mac] = x
+						devices[found.Mac] = x
 					}
 				}
 			}

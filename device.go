@@ -9,6 +9,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/ninjasphere/go-ninja/api"
+	"github.com/ninjasphere/go-ninja/config"
 	"github.com/ninjasphere/go-ninja/devices"
 	"github.com/ninjasphere/go-ninja/model"
 )
@@ -18,7 +19,7 @@ type Device struct {
 	id     string
 }
 
-func NewDevice(driver ninja.Driver, conn *ninja.Connection, id string) (*Device, error) {
+func NewDevice(driver ninja.Driver, conn *ninja.Connection, name, id string) (*Device, error) {
 
 	device := &Device{
 		id: id,
@@ -27,7 +28,7 @@ func NewDevice(driver ninja.Driver, conn *ninja.Connection, id string) (*Device,
 	switchDevice, err := devices.CreateSwitchDevice(driver, &model.Device{
 		NaturalID:     id,
 		NaturalIDType: "mdns",
-		Name:          &id,
+		Name:          &name,
 		Signatures: &map[string]string{
 			"ninja:manufacturer": "Broadlink",
 			"ninja:productName":  "SP-Mini",
@@ -43,19 +44,21 @@ func NewDevice(driver ninja.Driver, conn *ninja.Connection, id string) (*Device,
 
 	switchDevice.ApplyOnOff = device.applyOnOff
 
-	toggle := true
-	go func() {
-		for {
-			toggle = !toggle
+	if config.Bool(false, "fake") {
+		toggle := true
+		go func() {
+			for {
+				toggle = !toggle
 
-			err = device.applyOnOff(toggle)
+				err = device.applyOnOff(toggle)
 
-			if err != nil {
-				switchDevice.Log().Warningf("Failed to set on/off: %s", err)
+				if err != nil {
+					switchDevice.Log().Warningf("Failed to set on/off: %s", err)
+				}
+				time.Sleep(time.Second * 2)
 			}
-			time.Sleep(time.Second * 2)
-		}
-	}()
+		}()
+	}
 
 	return device, nil
 }
@@ -96,6 +99,14 @@ func cmd(response interface{}, params ...string) error {
 	cmd := exec.Command("./demo-client", params...)
 
 	output, err := cmd.Output()
+
+	if params[0] == "12" && config.Bool(false, "fake") {
+		output = []byte(`main[447]: send request {"api_id":12,"command":"device_list"}  len:37.
+		main[460]: start recvfrom...........
+		main[470]: get response: {"code":0,"list":[{"name":"spmini","mac":"b4:43:0d:11:c2:04","netstat":1,"new":0,"lock":0,"type":10024},{"name":"MS1","mac":"cc:d2:9b:f5:60:54","netstat":1,"new":0,"lock":0,"type":10015}]} len 100.
+
+		`)
+	}
 	//log.Infof("Output from script: %s err:", output, err)
 
 	if err != nil {
