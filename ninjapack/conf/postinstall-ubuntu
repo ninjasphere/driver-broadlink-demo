@@ -1,2 +1,2 @@
-/opt/ninjablocks/bin/nservice -q driver-kodi stop || true
-/opt/ninjablocks/bin/nservice -q driver-kodi start || true
+/opt/ninjablocks/bin/nservice -q driver-broadlink-demo stop || true
+/opt/ninjablocks/bin/nservice -q driver-broadlink-demo start || true
