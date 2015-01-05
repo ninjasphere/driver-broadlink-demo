@@ -32,7 +32,7 @@ func NewDevice(driver ninja.Driver, conn *ninja.Connection, name, id string) (*D
 		Signatures: &map[string]string{
 			"ninja:manufacturer": "Broadlink",
 			"ninja:productName":  "SP-Mini",
-			"ninja:thingType":    "switch", // (Sorry @thatguydan)
+			"ninja:thingType":    "socket", // (Sorry @thatguydan)
 		},
 	}, conn)
 
