@@ -44,7 +44,7 @@ func NewDevice(driver ninja.Driver, conn *ninja.Connection, name, id string) (*D
 
 	switchDevice.ApplyOnOff = device.applyOnOff
 
-	if config.Bool(false, "fake") {
+	if config.Bool(false, "toggle") {
 		toggle := true
 		go func() {
 			for {
