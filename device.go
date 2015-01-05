@@ -94,32 +94,48 @@ var responseRegex = regexp.MustCompile(`get response: (.*) len`)
 
 func cmd(response interface{}, params ...string) error {
 
-	log.Infof("Running command with %v", params)
+	complete := make(chan string, 1)
+	failed := make(chan error, 1)
 
-	cmd := exec.Command("./demo-client", params...)
+	go func() {
+		log.Infof("Running command with %v", params)
 
-	output, err := cmd.Output()
+		cmd := exec.Command("./demo-client", params...)
 
-	if params[0] == "12" && config.Bool(false, "fake") {
-		output = []byte(`main[447]: send request {"api_id":12,"command":"device_list"}  len:37.
+		output, err := cmd.Output()
+
+		if params[0] == "12" && config.Bool(false, "fake") {
+			output = []byte(`main[447]: send request {"api_id":12,"command":"device_list"}  len:37.
 		main[460]: start recvfrom...........
 		main[470]: get response: {"code":0,"list":[{"name":"spmini","mac":"b4:43:0d:11:c2:04","netstat":1,"new":0,"lock":0,"type":10024},{"name":"MS1","mac":"cc:d2:9b:f5:60:54","netstat":1,"new":0,"lock":0,"type":10015}]} len 100.
 
 		`)
-	}
-	//log.Infof("Output from script: %s err:", output, err)
+		}
+		//log.Infof("Output from script: %s err:", output, err)
 
-	if err != nil {
+		if err != nil {
+			failed <- err
+			return
+		}
+
+		complete <- string(output)
+	}()
+
+	select {
+	case <-time.After(time.Second * 5):
+		return fmt.Errorf("Command timed out after 5 seconds")
+	case err := <-failed:
 		return err
+	case output := <-complete:
+		chunks := responseRegex.FindAllStringSubmatch(output, -1)
+
+		if len(chunks) < 1 || len(chunks[0]) < 2 {
+			return fmt.Errorf("Couldn't parse response: %s", output)
+		}
+
+		log.Debugf("Response: %s", chunks[0][1])
+
+		return json.Unmarshal([]byte(chunks[0][1]), response)
 	}
 
-	chunks := responseRegex.FindAllStringSubmatch(string(output), -1)
-
-	if len(chunks) < 1 || len(chunks[0]) < 2 {
-		return fmt.Errorf("Couldn't parse response: %s", output)
-	}
-
-	log.Debugf("Response: %s", chunks[0][1])
-
-	return json.Unmarshal([]byte(chunks[0][1]), response)
 }
