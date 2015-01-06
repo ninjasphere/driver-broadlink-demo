@@ -51,6 +51,11 @@ type CmdResponse struct {
 	Code    int    `json:"mac,code"`
 }
 
+type ValueResponse struct {
+	CmdResponse
+	Value string `json:"value"`
+}
+
 type DeviceListResponse struct {
 	CmdResponse
 	List []FoundDevice `json:"list"`

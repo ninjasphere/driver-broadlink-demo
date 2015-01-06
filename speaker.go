@@ -1,9 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/ninjasphere/driver-broadlink-demo/vsd"
 	"github.com/ninjasphere/go-ninja/api"
 	"github.com/ninjasphere/go-ninja/channels"
@@ -41,6 +44,11 @@ func NewSpeakerDevice(driver ninja.Driver, conn *ninja.Connection, vsd *vsd.Conn
 	}
 
 	device.device = mediaPlayer
+
+	err = mediaPlayer.EnableMediaChannel()
+	if err != nil {
+		mediaPlayer.Log().Fatalf("Failed to enable media channel: %s", err)
+	}
 
 	mediaPlayer.ApplyVolume = device.applyVolume
 	if err := mediaPlayer.EnableVolumeChannel(true); err != nil {
@@ -92,6 +100,60 @@ func NewSpeakerDevice(driver ninja.Driver, conn *ninja.Connection, vsd *vsd.Conn
 	return device, nil
 }
 
+func (d *SpeakerDevice) updateState() error {
+
+	var rsp ValueResponse
+
+	err := d.vsd.Request(map[string]interface{}{
+		"api_id":  429,
+		"command": "ms1_request_pb",
+		"mac":     d.id,
+	}, &rsp)
+
+	if err != nil {
+		return err
+	}
+
+	spew.Dump("State response", rsp)
+
+	var state map[string]interface{}
+
+	idx := strings.Index(rsp.Value, "\n")
+
+	err = json.Unmarshal([]byte(rsp.Value[idx:]), &state)
+	if err != nil {
+		return err
+	}
+
+	spew.Dump("State", state)
+
+	name := state["name"].(string)
+
+	track := &channels.MusicTrackMediaItem{
+		ID:    &name,
+		Title: &name,
+	}
+
+	err = d.device.UpdateMusicMediaState(track, nil)
+	if err != nil {
+		return fmt.Errorf("Failed sending media state: %s", err)
+	}
+
+	playState := state["status"].(string)
+
+	switch playState {
+	case "play":
+		d.device.UpdateControlState(channels.MediaControlEventPlaying)
+	case "pause":
+		d.device.UpdateControlState(channels.MediaControlEventPaused)
+	default:
+		d.device.Log().Warningf("Unknown player status: %s", playState)
+	}
+
+	return nil
+
+}
+
 const keyPower = 2
 const keyPlayPause = 3
 const keyVolumeUp = 4
@@ -100,11 +162,13 @@ const keyPause = 9
 
 func (d *SpeakerDevice) applyPlayPause(play bool) error {
 
+	var rsp CmdResponse
+	var err error
+
 	if play {
 		//{"api_id":423,"command":"ms1_set_key_val", "mac":"cc:d2:9b:f5:61:b6", "value":1, "source":0}
-		var rsp CmdResponse
 
-		err := d.vsd.Request(map[string]interface{}{
+		err = d.vsd.Request(map[string]interface{}{
 			"api_id":  423,
 			"command": "ms1_set_key_val",
 			"mac":     d.id,
@@ -114,21 +178,23 @@ func (d *SpeakerDevice) applyPlayPause(play bool) error {
 
 		//spew.Dump("play response", rsp)
 
+	} else {
+
+		err = d.vsd.Request(Request{
+			ApiID:   423,
+			Command: "ms1_set_key_val",
+			MAC:     d.id,
+			Value:   keyPause,
+		}, &rsp)
+
+	}
+
+	if err != nil {
 		return err
 	}
 
-	var rsp CmdResponse
-
-	err := d.vsd.Request(Request{
-		ApiID:   423,
-		Command: "ms1_set_key_val",
-		MAC:     d.id,
-		Value:   keyPause,
-	}, &rsp)
-
 	//spew.Dump("pause response", rsp)
-
-	return err
+	return d.updateState()
 }
 
 // {"api_id":420,"command":"ms1_set_vol", "mac":"cc:d2:9b:f5:61:b6", "value":4}
