@@ -43,6 +43,9 @@ func NewSpeakerDevice(driver ninja.Driver, conn *ninja.Connection, vsd *vsd.Conn
 	device.device = mediaPlayer
 
 	mediaPlayer.ApplyVolume = device.applyVolume
+	if err := mediaPlayer.EnableVolumeChannel(true); err != nil {
+		mediaPlayer.Log().Fatalf("Failed to enable volume channel: %s", err)
+	}
 
 	if config.Bool(false, "volume") {
 		toggle := 0.0
