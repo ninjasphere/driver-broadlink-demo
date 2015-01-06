@@ -1,10 +1,6 @@
 package main
 
-import (
-	"fmt"
-	"os"
-	"os/signal"
-)
+import "github.com/ninjasphere/go-ninja/support"
 
 func main() {
 
@@ -15,11 +11,5 @@ func main() {
 		return
 	}
 
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, os.Kill)
-
-	// Block until a signal is received.
-	s := <-c
-	fmt.Println("Got signal:", s)
-
+	support.WaitUntilSignal()
 }

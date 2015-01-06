@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/ninjasphere/driver-broadlink-demo/vsd"
 	"github.com/ninjasphere/go-ninja/api"
 	"github.com/ninjasphere/go-ninja/logger"
 	"github.com/ninjasphere/go-ninja/support"
@@ -37,6 +38,19 @@ func NewDriver() (*Driver, error) {
 
 var macRegex = regexp.MustCompile(`([a-fA-F0-9]{2}(?:|:)){6}`)
 
+type Request struct {
+	ApiID   int         `json:"api_id,omitempty"`
+	Command string      `json:"command,omitempty"`
+	MAC     string      `json:"mac,omitempty"`
+	Value   interface{} `json:"value,omitempty"`
+	Index   *int        `json:"index,omitempty"`
+}
+
+type CmdResponse struct {
+	Message string `json:"msg"`
+	Code    int    `json:"mac,code"`
+}
+
 type DeviceListResponse struct {
 	CmdResponse
 	List []FoundDevice `json:"list"`
@@ -58,7 +72,12 @@ func (d *Driver) Start(_ interface{}) error {
 
 	go d.startServer()
 
-	devices := make(map[string]*Device)
+	conn, err := vsd.Connect("10.0.1.154")
+	if err != nil {
+		log.Fatalf("Failed to connect to broadlink server: %s", err)
+	}
+
+	devices := make(map[string]bool)
 
 	go func() {
 
@@ -67,26 +86,41 @@ func (d *Driver) Start(_ interface{}) error {
 
 			log.Debugf("Finding devices")
 
-			var response DeviceListResponse
-
-			err := cmd(&response, "12") // List devices
-
-			if err != nil {
-				log.Warningf("Failed to list devices: %s", err)
+			var rsp DeviceListResponse
+			if err := conn.Request(Request{
+				ApiID:   12,
+				Command: "device_list",
+			}, &rsp); err != nil {
+				log.Fatalf("Failed to request device list: %s", err)
 			}
 
-			log.Debugf("Found %d devices", len(response.List))
+			log.Debugf("Found %d devices", len(rsp.List))
 
-			for _, found := range response.List {
+			for _, found := range rsp.List {
 
 				if _, ok := devices[found.Mac]; !ok {
-					log.Infof("New name: %s mac: %s", found.Name, found.Mac)
-					x, err := NewDevice(d, d.Conn, found.Name, found.Mac)
-					if err != nil {
-						log.Infof("Failed to create device: %s", err)
-					} else {
-						devices[found.Mac] = x
+
+					switch found.Type {
+					case 10016:
+						log.Infof("New Socket! name: %s mac: %s", found.Name, found.Mac)
+						_, err := NewSocketDevice(d, d.Conn, conn, found.Name, found.Mac)
+						if err != nil {
+							log.Infof("Failed to create socket device: %s", err)
+						} else {
+							devices[found.Mac] = true
+						}
+					case 10015:
+						log.Infof("New Speaker! name: %s mac: %s", found.Name, found.Mac)
+						_, err := NewSpeakerDevice(d, d.Conn, conn, found.Name, found.Mac)
+						if err != nil {
+							log.Infof("Failed to create socket device: %s", err)
+						} else {
+							devices[found.Mac] = true
+						}
+					default:
+						log.Infof("Unknown device type! %v", found)
 					}
+
 				}
 			}
 
