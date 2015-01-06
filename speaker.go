@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -100,8 +101,7 @@ func NewSpeakerDevice(driver ninja.Driver, conn *ninja.Connection, vsd *vsd.Conn
 	return device, nil
 }
 
-func (d *SpeakerDevice) updateState() error {
-
+func (d *SpeakerDevice) getState() (map[string]interface{}, error) {
 	var rsp ValueResponse
 
 	err := d.vsd.Request(map[string]interface{}{
@@ -111,7 +111,7 @@ func (d *SpeakerDevice) updateState() error {
 	}, &rsp)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	spew.Dump("State response", rsp)
@@ -121,6 +121,17 @@ func (d *SpeakerDevice) updateState() error {
 	idx := strings.Index(rsp.Value, "\n")
 
 	err = json.Unmarshal([]byte(rsp.Value[idx:]), &state)
+	if err != nil {
+		return nil, err
+	}
+
+	return state, nil
+}
+
+func (d *SpeakerDevice) updateState() error {
+
+	state, err := d.getState()
+
 	if err != nil {
 		return err
 	}
@@ -168,12 +179,26 @@ func (d *SpeakerDevice) applyPlayPause(play bool) error {
 	if play {
 		//{"api_id":423,"command":"ms1_set_key_val", "mac":"cc:d2:9b:f5:61:b6", "value":1, "source":0}
 
+		state, err := d.getState()
+
+		if err != nil {
+			return err
+		}
+
+		i := strings.TrimPrefix(state["source"].(string), "SOURCE")
+		source, err := strconv.ParseInt(i, 10, 8)
+
+		if err != nil {
+			// Default to source 0 if there's no current one
+			source = 0
+		}
+
 		err = d.vsd.Request(map[string]interface{}{
 			"api_id":  423,
 			"command": "ms1_set_key_val",
 			"mac":     d.id,
 			"value":   1,
-			"source":  0,
+			"source":  source,
 		}, &rsp)
 
 		//spew.Dump("play response", rsp)
