@@ -47,6 +47,11 @@ func NewSpeakerDevice(driver ninja.Driver, conn *ninja.Connection, vsd *vsd.Conn
 		mediaPlayer.Log().Fatalf("Failed to enable volume channel: %s", err)
 	}
 
+	mediaPlayer.ApplyPlayPause = device.applyPlayPause
+	if err := mediaPlayer.EnableControlChannel([]string{}); err != nil {
+		mediaPlayer.Log().Fatalf("Failed to enable control channel: %s", err)
+	}
+
 	if config.Bool(false, "volume") {
 		toggle := 0.0
 		go func() {
@@ -68,7 +73,62 @@ func NewSpeakerDevice(driver ninja.Driver, conn *ninja.Connection, vsd *vsd.Conn
 		}()
 	}
 
+	if config.Bool(false, "togglePlay") {
+		toggle := true
+		go func() {
+			for {
+				toggle = !toggle
+
+				err = device.applyPlayPause(toggle)
+
+				if err != nil {
+					mediaPlayer.Log().Warningf("Failed to set play/pause: %s", err)
+				}
+				time.Sleep(time.Second * 2)
+			}
+		}()
+	}
+
 	return device, nil
+}
+
+const keyPower = 2
+const keyPlayPause = 3
+const keyVolumeUp = 4
+const keyVolumeDown = 5
+const keyPause = 9
+
+func (d *SpeakerDevice) applyPlayPause(play bool) error {
+
+	if play {
+		//{"api_id":423,"command":"ms1_set_key_val", "mac":"cc:d2:9b:f5:61:b6", "value":1, "source":0}
+		var rsp CmdResponse
+
+		err := d.vsd.Request(map[string]interface{}{
+			"api_id":  423,
+			"command": "ms1_set_key_val",
+			"mac":     d.id,
+			"value":   1,
+			"source":  0,
+		}, &rsp)
+
+		//spew.Dump("play response", rsp)
+
+		return err
+	}
+
+	var rsp CmdResponse
+
+	err := d.vsd.Request(Request{
+		ApiID:   423,
+		Command: "ms1_set_key_val",
+		MAC:     d.id,
+		Value:   keyPause,
+	}, &rsp)
+
+	//spew.Dump("pause response", rsp)
+
+	return err
 }
 
 // {"api_id":420,"command":"ms1_set_vol", "mac":"cc:d2:9b:f5:61:b6", "value":4}
