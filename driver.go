@@ -72,7 +72,7 @@ func (d *Driver) Start(_ interface{}) error {
 
 	go d.startServer()
 
-	conn, err := vsd.Connect("10.0.1.154")
+	conn, err := vsd.Connect("127.0.0.1")
 	if err != nil {
 		log.Fatalf("Failed to connect to broadlink server: %s", err)
 	}
